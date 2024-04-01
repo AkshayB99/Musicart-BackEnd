@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema({
   mobileNo: {
     type: String,
     required: [true, "Please tell us your contact no"],
+    unique: true,
   },
   email: {
     type: String,

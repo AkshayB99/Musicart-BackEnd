@@ -4,6 +4,7 @@ const User = require("./../models/userModel");
 const catchAsync = require("./../utils/catchAsync");
 const AppError = require("./../utils/appError");
 const { promisify } = require("util");
+const validator = require('validator');
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -47,22 +48,36 @@ exports.signup = catchAsync(async (req, res, next) => {
 });
 
 exports.login = catchAsync(async (req, res, next) => {
-  const { email, password } = req.body;
+  const { identifier, password } = req.body;
 
-  // 1) Check if email and password exist
-  if (!email || !password) {
-    return next(new AppError("Please provide email and password!", 400));
+  // Check if identifier (email or mobile number) and password exist
+  if (!identifier || !password) {
+    return next(new AppError("Please provide email/mobile number and password!", 400));
   }
-  // 2) Check if user exists && password is correct
-  const user = await User.findOne({ email }).select("+password");
 
+  // Check if the provided identifier is an email or mobile number
+  let user;
+  if (validator.isEmail(identifier)) {
+    // If the identifier is an email
+    user = await User.findOne({ email: identifier }).select("+password");
+  } else if (validator.isMobilePhone(identifier, "any", { strictMode: false })) {
+    // If the identifier is a mobile number
+    user = await User.findOne({ mobileNo: identifier }).select("+password");
+  } else {
+    // If the identifier is neither an email nor a mobile number
+    return next(new AppError("Please provide a valid email/mobile number!", 400));
+  }
+
+  // Check if the user exists and password is correct
   if (!user || !(await user.correctPassword(password, user.password))) {
-    return next(new AppError("Incorrect email or password", 401));
+    return next(new AppError("Incorrect email/mobile number or password", 401));
   }
 
-  // 3) If everything ok, send token to client
+  // If everything is ok, send token to client
   createSendToken(user, 200, res);
 });
+
+
 
 exports.logout = (req, res) => {
   res.cookie("jwt", "loggedout", {
